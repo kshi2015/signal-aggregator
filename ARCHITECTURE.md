@@ -44,7 +44,7 @@ flowchart TD
     subgraph Read
         B(["GET /summary"])
         C(["POST /actions"])
-        D(["GET|PUT /playbook"])
+        D(["GET + PUT /playbook"])
         AG2["API Gateway"]
         RL["Read Lambda"]
         AL2["Actions Lambda"]
@@ -55,7 +55,7 @@ flowchart TD
 
     subgraph UI["UI (PWA)"]
         CF["CloudFront"]
-        SS[("S3\nPWA"))"]
+        SS[("S3\nPWA")]
         Browser(["DSP Owner\nBrowser / Mobile"])
         Browser --> CF --> SS
         SS --> B
