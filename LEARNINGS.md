@@ -11,6 +11,7 @@ From the PRFAQ:
 2. The MCP-mediated workflow: building AWS services through Claude Code
 3. Writing requirements before code and iterating on the spec with AI
 4. What it feels like to debug a multi-service event-driven system end-to-end
+5. *(Added during build)* How to translate backend signals into an action-oriented UX — and what it means to design for WW configurability from the start
 
 ---
 
@@ -44,9 +45,29 @@ Writing the PRFAQ before any code forced decisions that would have otherwise sur
 
 The unexpected benefit: when the build revealed gaps (the driver→DSP mapping table wasn't in the original data model), I had a spec to update rather than tribal knowledge to carry around.
 
+### 6. A score is not a product — an action is
+
+The first version of this system surfaced scores. A driver at 11 is bad. But "bad" doesn't tell a DSP owner what to do. The product question is: what happens *after* the alert fires?
+
+Designing the action queue forced a different set of questions than designing the pipeline did. What's the recommended action for a high-severity customer complaint? Who logs that something was done about it? How does the system know an intervention worked? These aren't data questions — they're workflow questions that required a new data model (driver_actions, playbook, notification_prefs) sitting on top of the existing pipeline.
+
+The lesson: backend completeness and UX completeness are independent. The pipeline was complete when events flowed end-to-end. The product wasn't complete until there was a closed loop from signal to action to resolution.
+
+### 7. Notification design is a product decision, not a configuration detail
+
+The original design had one notification: SNS fires when score ≥ 9. That's a complete technical implementation and an incomplete product. A single channel with no suppression, no batching, and no preference model produces fatigue within days.
+
+Thinking through three tiers (interrupt, nudge, digest) — each with a different channel, frequency contract, and suppression rule — revealed that the real design challenge is trust. A DSP owner who receives one well-timed, accurate, actionable alert will act on it. One who receives twelve will start ignoring all of them. The threshold isn't just a number in a config table; it's a promise about when you'll be interrupted.
+
+### 8. WW configurability is a structural decision, not a feature
+
+Adding WW support later would require rewriting the notification dispatch layer, the config hierarchy, the scheduling logic, and every hardcoded string. Doing it upfront meant: a `region` key in the config hierarchy (even with only `us-east-1` populated), IANA timezone strings instead of UTC offsets, externalized locale strings, and a channel-agnostic dispatch interface. None of these added significant complexity to V0, but each would have been expensive to retrofit.
+
+The principle: isolate the things that vary by region (channel, language, threshold, opt-in model) from the things that don't (what a notification means, when it fires, what it links to). That separation is the architecture — not just a nice-to-have.
+
 ---
 
-## Three Things I'd Do Differently for Production
+## What I'd Do Differently for Production
 
 ### 1. Atomic score increments instead of read-modify-write
 
@@ -60,11 +81,19 @@ S3 event notifications invoke Lambda asynchronously with 3 retries. If Lambda is
 
 An SQS queue between S3 and Lambda provides unlimited retries, a dead-letter queue for failed events, and a visible backlog metric. It's a one-resource addition that changes the failure mode from "silent drop" to "visible queue depth."
 
-### 3. Notification deduplication
+### 3. Notification deduplication and suppression
 
 Currently, every event that pushes a driver's score above 9 fires an SNS notification. A driver already at score 15 fires again on every subsequent event. DSP owners would receive dozens of alerts for the same driver and start ignoring them — exactly the problem this product is supposed to solve.
 
-The fix: add a `notified_at` timestamp to the driver summary. Suppress re-notification until the score drops below threshold and crosses it again, or a cooldown window (e.g., 24 hours) elapses.
+The fix is already specced in PRODUCT_SPEC_V0.md: add `notified_at` and `notification_threshold_at` to the driver summary. Suppress re-notification until the score drops below threshold and crosses it again. For multiple drivers crossing threshold on the same day, batch into one SMS rather than sending individually.
+
+### 4. Auth before shipping to any real DSP
+
+V0 uses `dsp_id` as a URL param — a DSP can query any other DSP's data by changing one value. This is fine for a learning project; it's a data breach waiting to happen in production. Amazon Cognito with per-DSP scoped reads on the Read Lambda is the minimum bar before this touches real data.
+
+### 5. Discovery interviews before designing the UX
+
+The action queue and playbook model are hypotheses. The right recommended action for a high-severity customer complaint might not be "1:1 conversation within 24 hours" for every DSP. Some may have a dedicated safety manager; some may route complaints to Amazon directly. The DSP discovery interview guide (DSP_DISCOVERY.md) should be run with 3–5 real DSPs before any wireframe is finalized — specifically the Section 4 questions about what actually happens between "I see a problem" and "I've done something about it."
 
 ---
 
@@ -78,7 +107,9 @@ The friction was instructive. Every error was a gap in my mental model of how th
 
 ## What I'd Build Next
 
+- **Auth:** Cognito + per-DSP scoped reads before this touches real data
+- **Actions Lambda + PWA:** the action queue UI and the three new DynamoDB tables (driver_actions, playbook, notification_prefs) specified in PRODUCT_SPEC_V0.md
 - **Idempotency:** use `event_id` to deduplicate double-posted events (a conditional write on the events table)
+- **SQS buffer:** insert SQS between S3 and the Aggregation Lambda to eliminate silent event loss under load
 - **Score decay:** weight events by recency within the 7-day window — a DSP owner should care more about what happened yesterday than six days ago
-- **Grafana dashboard:** connect Amazon Managed Grafana to DynamoDB for a real-time visual driver ranking
-- **Auth:** even a simple API key on the ingest endpoint before sharing the URL with anyone
+- **DSP discovery interviews:** run the guide in DSP_DISCOVERY.md with 3–5 real DSPs to validate the action queue model and playbook defaults before building the frontend
