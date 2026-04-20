@@ -1,21 +1,37 @@
 # Signal Aggregator
 
-A serverless event-driven pipeline that ingests driver safety signals, computes per-driver severity scores, and notifies DSP owners when a driver crosses a threshold.
+A serverless event-driven pipeline that ingests driver safety signals, computes per-driver severity scores, and surfaces them as an action queue for Delivery Service Partner (DSP) owners — so they know not just which drivers need attention, but what to do about it.
 
-Built as a hands-on AWS learning project — see [PRFAQ.md](PRFAQ.md) for the product spec and [LEARNINGS.md](LEARNINGS.md) for what the build taught me.
+Built as a hands-on AWS learning project with a WW-configurable UX design layer on top.
+
+---
+
+## Project Docs
+
+| Doc | What it covers |
+|---|---|
+| [PRFAQ.md](PRFAQ.md) | Product spec and customer FAQ written before any code |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, data model, flow descriptions, scale tradeoffs |
+| [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) | V0 product spec: user stories, UX flows, action playbook, notification tiers, API contracts, WW config |
+| [DSP_DISCOVERY.md](DSP_DISCOVERY.md) | Discovery interview guide for DSP customer research |
+| [LEARNINGS.md](LEARNINGS.md) | What the build taught me — technical and product |
 
 ---
 
 ## Architecture
 
 ```
-POST /ingest   → API Gateway → Ingest Lambda → S3 (raw events)
-                                                     ↓ S3 event notification
-                               Aggregation Lambda → DynamoDB (driver events + summary)
-                                                  → SNS if score ≥ 9
+POST /ingest    → API Gateway → Ingest Lambda → S3 (raw events)
+                                                      ↓ S3 event notification
+                                Aggregation Lambda → DynamoDB (driver summary)
+                                                   → SNS (Tier 1 alert, score ≥ 9)
+                                                   → SES (Tier 2 nudge, warning band)
 
-GET /summary   → API Gateway → Read Lambda → DynamoDB → ranked driver list
-GET /summary?driver_id=X      → summary + recent event history
+GET  /summary   → API Gateway → Read Lambda    → DynamoDB → action queue data
+POST /actions   → API Gateway → Actions Lambda → DynamoDB (driver_actions)
+GET|PUT /playbook              → Actions Lambda → DynamoDB (playbook config)
+
+Scheduled                      → SES (Tier 3 weekly digest)
 ```
 
 Full architecture with data model and scale tradeoffs: [ARCHITECTURE.md](ARCHITECTURE.md)
@@ -30,10 +46,13 @@ Full architecture with data model and scale tradeoffs: [ARCHITECTURE.md](ARCHITE
 | Lambda — ingest | `signal-aggregator-ingest` |
 | Lambda — aggregate | `signal-aggregator-aggregate` |
 | Lambda — read | `signal-aggregator-read` |
-| S3 bucket | `signal-aggregator-raw-{account_id}` |
-| DynamoDB — raw events | `signal-aggregator-driver-events` |
+| S3 — raw events | `signal-aggregator-raw-{account_id}` |
+| DynamoDB — driver → DSP map | `signal-aggregator-driver-map` |
 | DynamoDB — driver summary | `signal-aggregator-driver-summary` |
 | DynamoDB — config | `signal-aggregator-config` |
+| DynamoDB — driver actions | `signal-aggregator-driver-actions` *(specced, not yet built)* |
+| DynamoDB — action playbook | `signal-aggregator-playbook` *(specced, not yet built)* |
+| DynamoDB — notification prefs | `signal-aggregator-notification-prefs` *(specced, not yet built)* |
 | SNS topic | `signal-aggregator-notifications` |
 
 ---
@@ -65,7 +84,19 @@ Scores are computed as a weighted sum over a rolling 7-day window:
 
 Severity multipliers: `low=1`, `medium=2`, `high=3`
 
-**SNS notification fires when score ≥ 9** — a single high-severity customer complaint crosses this immediately (3 × 3 = 9).
+**Notification threshold: score ≥ 9** — a single high-severity customer complaint crosses this immediately (3 × 3 = 9).
+
+---
+
+## Notification Tiers
+
+| Tier | Trigger | Channel | Frequency |
+|---|---|---|---|
+| Interrupt | Score crosses threshold (≥ 9) | SMS | Once per threshold crossing, batched if multiple drivers |
+| Nudge | Score enters warning band (≥ 6) | Email | Once per entry into band, batched next morning |
+| Digest | Scheduled | Email | Weekly, configurable day + time |
+
+Full notification spec including suppression logic, preference center, and WW config: [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md#8-notification-spec)
 
 ---
 
@@ -107,16 +138,19 @@ curl -X POST https://co06fw6bm2.execute-api.us-east-1.amazonaws.com/ \
 
 ```
 src/
-  ingest/    handler.py   — API Gateway → S3 write
-  aggregate/ handler.py   — S3 event → DynamoDB score update + SNS
-  read/      handler.py   — DynamoDB → ranked driver list / driver detail
-PRFAQ.md                  — product spec written before any code
-ARCHITECTURE.md           — system diagram, data model, scale gaps
-LEARNINGS.md              — what this build taught me
+  ingest/    handler.py        — API Gateway → S3 write
+  aggregate/ handler.py        — S3 event → DynamoDB score update + SNS/SES
+  read/      handler.py        — DynamoDB → action queue data
+
+PRFAQ.md                       — product spec written before any code
+ARCHITECTURE.md                — system diagram, data model, scale gaps
+PRODUCT_SPEC_V0.md             — full V0 spec: UX flows, data model, API contracts, WW config
+DSP_DISCOVERY.md               — customer discovery interview guide
+LEARNINGS.md                   — what this build taught me
 ```
 
 ---
 
 ## What's Deliberately Missing
 
-No auth, no CI/CD, no tests, no cost optimization. This is a learning project — see [LEARNINGS.md](LEARNINGS.md) for what I'd add before putting this in production.
+No auth, no CI/CD, no tests, no cost optimization. The Actions Lambda, PWA frontend, and three new DynamoDB tables are specced in [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) but not yet built — customer discovery interviews ([DSP_DISCOVERY.md](DSP_DISCOVERY.md)) come first. See [LEARNINGS.md](LEARNINGS.md) for what I'd add before putting this in production.
