@@ -65,6 +65,22 @@ Adding WW support later would require rewriting the notification dispatch layer,
 
 The principle: isolate the things that vary by region (channel, language, threshold, opt-in model) from the things that don't (what a notification means, when it fires, what it links to). That separation is the architecture — not just a nice-to-have.
 
+### 9. Auth isn't a layer you add later — data isolation is
+
+The original V0 used `dsp_id` as a URL parameter. Any caller who knew (or guessed) a DSP ID could read that DSP's driver data. This works for a learning project; it's a data breach in production.
+
+Adding Cognito in V1 wasn't just "adding a login screen." It changed the data model: every Lambda that reads DSP-specific data now gets `dsp_id` from a signed, immutable JWT claim rather than a query parameter the caller controls. The DynamoDB filter in `get_drivers_for_dsp()` was already written; the only change was where the `dsp_id` value came from. That's the right way to think about auth — not as a gate at the front door, but as the mechanism that ensures identity propagates correctly through every data access.
+
+### 10. HTTP API v2 `rawPath` includes the stage prefix
+
+A routing bug that wasn't obvious from the Lambda code: in HTTP API (v2) with a named stage (e.g., `prod`), `event["rawPath"]` is `/prod/playbook`, not `/playbook`. The stage name is prepended. `event["routeKey"]` (e.g., `"GET /playbook"`) does not include the stage and is the right field to use for routing inside a Lambda that handles multiple paths. Diagnosing this required temporarily logging the event structure to CloudWatch and looking at the actual field values — the code looked correct but the assumption about the path format was wrong.
+
+### 11. MCP as a PoC tool changes how you validate architecture
+
+Using the Lambda Tool MCP server to call Lambda functions directly (bypassing API Gateway) made it possible to demonstrate data isolation before Cognito was provisioned: ingest events with different `dsp_id` values, confirm the driver summary records were correctly scoped, then wire up the real auth layer knowing the underlying logic already worked.
+
+This pattern — validate the data model and Lambda logic first via direct invocation, then add the auth layer — is faster than building auth-first and debugging both simultaneously. The MCP tool also exposed a format difference: direct Lambda invocations don't wrap payloads in the API Gateway envelope, so the Lambda must handle both `event.get("body")` (API Gateway) and direct `event` keys differently.
+
 ---
 
 ## What I'd Do Differently for Production
@@ -85,13 +101,9 @@ An SQS queue between S3 and Lambda provides unlimited retries, a dead-letter que
 
 Currently, every event that pushes a driver's score above 9 fires an SNS notification. A driver already at score 15 fires again on every subsequent event. DSP owners would receive dozens of alerts for the same driver and start ignoring them — exactly the problem this product is supposed to solve.
 
-The fix is already specced in PRODUCT_SPEC_V0.md: add `notified_at` and `notification_threshold_at` to the driver summary. Suppress re-notification until the score drops below threshold and crosses it again. For multiple drivers crossing threshold on the same day, batch into one SMS rather than sending individually.
+The fix is already specced in PRODUCT_SPEC_V0.md: add `notified_at` and `notification_threshold_at` to the driver summary. Suppress re-notification until the score drops below threshold and crosses it again.
 
-### 4. Auth before shipping to any real DSP
-
-V0 uses `dsp_id` as a URL param — a DSP can query any other DSP's data by changing one value. This is fine for a learning project; it's a data breach waiting to happen in production. Amazon Cognito with per-DSP scoped reads on the Read Lambda is the minimum bar before this touches real data.
-
-### 5. Discovery interviews before designing the UX
+### 4. Discovery interviews before finalising the UX
 
 The action queue and playbook model are hypotheses. The right recommended action for a high-severity customer complaint might not be "1:1 conversation within 24 hours" for every DSP. Some may have a dedicated safety manager; some may route complaints to Amazon directly. The DSP discovery interview guide (DSP_DISCOVERY.md) should be run with 3–5 real DSPs before any wireframe is finalized — specifically the Section 4 questions about what actually happens between "I see a problem" and "I've done something about it."
 
@@ -107,9 +119,9 @@ The friction was instructive. Every error was a gap in my mental model of how th
 
 ## What I'd Build Next
 
-- **Auth:** Cognito + per-DSP scoped reads before this touches real data
-- **Actions Lambda + PWA:** the action queue UI and the three new DynamoDB tables (driver_actions, playbook, notification_prefs) specified in PRODUCT_SPEC_V0.md
-- **Idempotency:** use `event_id` to deduplicate double-posted events (a conditional write on the events table)
+- **PWA frontend:** the action queue UI consuming the now-complete API surface — auth, queue, playbook config, action logging all exist
 - **SQS buffer:** insert SQS between S3 and the Aggregation Lambda to eliminate silent event loss under load
+- **Idempotency:** use `event_id` to deduplicate double-posted events (a conditional write on the events table)
 - **Score decay:** weight events by recency within the 7-day window — a DSP owner should care more about what happened yesterday than six days ago
 - **DSP discovery interviews:** run the guide in DSP_DISCOVERY.md with 3–5 real DSPs to validate the action queue model and playbook defaults before building the frontend
+- **WAF:** attach AWS WAF to CloudFront and API Gateway to rate-limit and protect against OWASP Top 10 before any real DSP traffic

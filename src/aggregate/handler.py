@@ -80,11 +80,14 @@ def process_event(payload):
 
     # Update driver summary
     summary_table = dynamodb.Table(SUMMARY_TABLE)
-    summary_table.put_item(Item={
+    item = {
         "driver_id":    driver_id,
         "score":        score,
         "last_updated": now.isoformat(),
-    })
+    }
+    if "dsp_id" in payload:
+        item["dsp_id"] = payload["dsp_id"]
+    summary_table.put_item(Item=item)
 
     threshold = int(config["notification_threshold"])
     if score >= threshold:

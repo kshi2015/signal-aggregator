@@ -11,7 +11,7 @@ Built as a hands-on AWS learning project with a WW-configurable UX design layer 
 | Doc | What it covers |
 |---|---|
 | [PRFAQ.md](PRFAQ.md) | Product spec and customer FAQ written before any code |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, data model, flow descriptions, scale tradeoffs |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, auth architecture, data model, flow descriptions, scale tradeoffs |
 | [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) | V0 product spec: user stories, UX flows, action playbook, notification tiers, API contracts, WW config |
 | [DSP_DISCOVERY.md](DSP_DISCOVERY.md) | Discovery interview guide for DSP customer research |
 | [LEARNINGS.md](LEARNINGS.md) | What the build taught me — technical and product |
@@ -21,38 +21,45 @@ Built as a hands-on AWS learning project with a WW-configurable UX design layer 
 ## Architecture
 
 ```
-POST /ingest    → API Gateway → Ingest Lambda → S3 (raw events)
-                                                      ↓ S3 event notification
-                                Aggregation Lambda → DynamoDB (driver summary)
-                                                   → SNS (Tier 1 alert, score ≥ 9)
-                                                   → SES (Tier 2 nudge, warning band)
+POST /ingest (x-api-key) → API Gateway → Ingest Authorizer Lambda → Secrets Manager
+                                       → Ingest Lambda → S3 (raw events)
+                                                              ↓ S3 event notification
+                                         Aggregation Lambda → DynamoDB (driver summary + dsp_id)
+                                                           → SNS (Tier 1 alert, score ≥ 9)
+                                                           → SES (Tier 2 nudge, warning band)
 
-GET  /summary   → API Gateway → Read Lambda    → DynamoDB → action queue data
-POST /actions   → API Gateway → Actions Lambda → DynamoDB (driver_actions)
-GET|PUT /playbook              → Actions Lambda → DynamoDB (playbook config)
+GET  /summary    (Bearer JWT) → API Gateway → JWT Authorizer → Cognito
+                                           → Read Lambda    → DynamoDB (scoped to dsp_id)
+POST /actions    (Bearer JWT) → API Gateway → JWT Authorizer → Cognito
+GET|PUT /playbook(Bearer JWT) →            → Actions Lambda → DynamoDB
 
-Scheduled                      → SES (Tier 3 weekly digest)
+Scheduled                                  → SES (Tier 3 weekly digest)
 ```
 
-Full architecture with data model and scale tradeoffs: [ARCHITECTURE.md](ARCHITECTURE.md)
+Full architecture with auth design, data model, and scale tradeoffs: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
 
 ## AWS Resources
 
-| Resource | Name |
+| Resource | Name / ID |
 |---|---|
-| API Gateway (HTTP) | `signal-aggregator` |
+| API Gateway (HTTP API) | `signal-aggregator-api` — `4u3d4nahch.execute-api.us-east-1.amazonaws.com` |
+| Cognito User Pool | `signal-aggregator-users` — `us-east-1_fzbbl1fFE` |
+| Cognito App Client | `signal-aggregator-pwa` — `2mibhnvakr03n0raa2qvgo3ies` |
 | Lambda — ingest | `signal-aggregator-ingest` |
+| Lambda — ingest authorizer | `signal-aggregator-ingest-authorizer` |
 | Lambda — aggregate | `signal-aggregator-aggregate` |
 | Lambda — read | `signal-aggregator-read` |
+| Lambda — actions | `signal-aggregator-actions` |
 | S3 — raw events | `signal-aggregator-raw-{account_id}` |
-| DynamoDB — driver → DSP map | `signal-aggregator-driver-map` |
 | DynamoDB — driver summary | `signal-aggregator-driver-summary` |
+| DynamoDB — driver events | `signal-aggregator-driver-events` |
 | DynamoDB — config | `signal-aggregator-config` |
-| DynamoDB — driver actions | `signal-aggregator-driver-actions` *(specced, not yet built)* |
-| DynamoDB — action playbook | `signal-aggregator-playbook` *(specced, not yet built)* |
-| DynamoDB — notification prefs | `signal-aggregator-notification-prefs` *(specced, not yet built)* |
+| DynamoDB — driver actions | `signal-aggregator-driver-actions` |
+| DynamoDB — action playbook | `signal-aggregator-playbook` |
+| DynamoDB — notification prefs | `signal-aggregator-notification-prefs` |
+| Secrets Manager — ingest key | `signal-aggregator/ingest-api-key` |
 | SNS topic | `signal-aggregator-notifications` |
 
 ---
@@ -62,6 +69,7 @@ Full architecture with data model and scale tradeoffs: [ARCHITECTURE.md](ARCHITE
 ```json
 {
   "driver_id":   "string",
+  "dsp_id":      "string",
   "signal_type": "hard_braking | customer_complaint | on_road_observation",
   "severity":    "low | medium | high",
   "timestamp":   "ISO 8601",
@@ -102,34 +110,75 @@ Full notification spec including suppression logic, preference center, and WW co
 
 ## Try It
 
-**Post a safety event:**
+**Step 1 — Get a JWT token (DSP owner auth):**
 ```bash
-curl -X POST https://co06fw6bm2.execute-api.us-east-1.amazonaws.com/ \
+aws cognito-idp initiate-auth \
+  --auth-flow USER_PASSWORD_AUTH \
+  --client-id 2mibhnvakr03n0raa2qvgo3ies \
+  --auth-parameters USERNAME=dsp001@example.com,PASSWORD="SignalAgg001!"
+
+# Copy the IdToken from the response
+TOKEN=<IdToken>
+```
+
+**Step 2 — Post a safety event (internal service, requires API key):**
+```bash
+# Retrieve the key from Secrets Manager
+INGEST_KEY=$(aws secretsmanager get-secret-value \
+  --secret-id signal-aggregator/ingest-api-key \
+  --query 'SecretString' --output text)
+
+curl -X POST https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/ingest \
+  -H "x-api-key: $INGEST_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "driver_id":   "driver-001",
+    "dsp_id":      "dsp-001",
     "signal_type": "customer_complaint",
     "severity":    "high",
-    "timestamp":   "2026-04-14T05:00:00Z",
+    "timestamp":   "2026-04-23T10:00:00Z",
     "source":      "customer-feedback-system"
   }'
 ```
 
-**Read all drivers ranked by severity score:**
+**Step 3 — Read the action queue (scoped to your DSP):**
 ```bash
-curl https://co06fw6bm2.execute-api.us-east-1.amazonaws.com/summary
+curl -H "Authorization: Bearer $TOKEN" \
+  https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/summary
 ```
 
-**Drill into a specific driver:**
+**Step 4 — Log an action on a flagged driver:**
 ```bash
-curl "https://co06fw6bm2.execute-api.us-east-1.amazonaws.com/summary?driver_id=driver-001"
-```
-
-**Validation — bad signal type returns 400:**
-```bash
-curl -X POST https://co06fw6bm2.execute-api.us-east-1.amazonaws.com/ \
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"driver_id":"d1","signal_type":"made_up","severity":"low","timestamp":"2026-04-14T05:00:00Z","source":"test"}'
+  -d '{"driver_id":"driver-001","action":"in_progress","note":"Had 1:1 — monitoring this week."}' \
+  https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/actions
+```
+
+**Step 5 — View and customise the action playbook:**
+```bash
+# View current playbook (defaults if not yet configured)
+curl -H "Authorization: Bearer $TOKEN" \
+  https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/playbook
+
+# Customise one entry
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"updates":[{"signal_type":"customer_complaint","severity":"high","recommended_action":"Call driver same day + document in Mentor"}]}' \
+  https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/playbook
+```
+
+**Auth validation — no token returns 401, wrong ingest key returns 403:**
+```bash
+curl https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/summary
+# → {"message":"Unauthorized"}
+
+curl -X POST -H "x-api-key: wrong" \
+  https://4u3d4nahch.execute-api.us-east-1.amazonaws.com/prod/ingest \
+  -d '{}'
+# → {"message":"Forbidden"}
 ```
 
 ---
@@ -138,19 +187,21 @@ curl -X POST https://co06fw6bm2.execute-api.us-east-1.amazonaws.com/ \
 
 ```
 src/
-  ingest/    handler.py        — API Gateway → S3 write
-  aggregate/ handler.py        — S3 event → DynamoDB score update + SNS/SES
-  read/      handler.py        — DynamoDB → action queue data
+  ingest/            handler.py   — validates event + writes to S3
+  ingest_authorizer/ handler.py   — validates x-api-key against Secrets Manager
+  aggregate/         handler.py   — S3 event → score recompute → DynamoDB + SNS/SES
+  read/              handler.py   — DynamoDB → DSP-scoped action queue (JWT-gated)
+  actions/           handler.py   — action lifecycle + playbook config (JWT-gated)
 
-PRFAQ.md                       — product spec written before any code
-ARCHITECTURE.md                — system diagram, data model, scale gaps
-PRODUCT_SPEC_V0.md             — full V0 spec: UX flows, data model, API contracts, WW config
-DSP_DISCOVERY.md               — customer discovery interview guide
-LEARNINGS.md                   — what this build taught me
+PRFAQ.md            product spec written before any code
+ARCHITECTURE.md     system diagram, auth design, data model, scale gaps
+PRODUCT_SPEC_V0.md  full V0 spec: UX flows, data model, API contracts, WW config
+DSP_DISCOVERY.md    customer discovery interview guide
+LEARNINGS.md        what this build taught me
 ```
 
 ---
 
 ## What's Deliberately Missing
 
-No auth, no CI/CD, no tests, no cost optimization. The Actions Lambda, PWA frontend, and three new DynamoDB tables are specced in [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) but not yet built — customer discovery interviews ([DSP_DISCOVERY.md](DSP_DISCOVERY.md)) come first. See [LEARNINGS.md](LEARNINGS.md) for what I'd add before putting this in production.
+No CI/CD, no tests, no cost optimization. The PWA frontend is specced in [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) but not yet built — customer discovery interviews ([DSP_DISCOVERY.md](DSP_DISCOVERY.md)) come first. See [LEARNINGS.md](LEARNINGS.md) for what I'd add before putting this in production.

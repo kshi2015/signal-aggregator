@@ -15,7 +15,7 @@ def lambda_handler(event, context):
     except json.JSONDecodeError:
         return {"statusCode": 400, "body": json.dumps({"error": "invalid JSON"})}
 
-    required = {"driver_id", "signal_type", "severity", "timestamp", "source"}
+    required = {"driver_id", "dsp_id", "signal_type", "severity", "timestamp", "source"}
     missing = required - body.keys()
     if missing:
         return {
