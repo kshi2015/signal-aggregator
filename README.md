@@ -16,6 +16,15 @@ Built as a hands-on AWS learning project with a WW-configurable UX design layer 
 | [DSP_DISCOVERY.md](DSP_DISCOVERY.md) | Discovery interview guide for DSP customer research |
 | [LEARNINGS.md](LEARNINGS.md) | What the build taught me — technical and product |
 
+## Design
+
+| Artifact | Link |
+|---|---|
+| Figma — screens & flows | [Signal Aggregator on Figma](https://www.figma.com/design/Z2Pvr8JVFZoyTRYuYtU3iD/Signal-Aggregator?node-id=5-168&t=96N2YyFp872MEKYl-1) |
+| HTML mockup (local) | [design/index.html](design/index.html) — rendered DSP dashboard with architecture and screen diagrams |
+| Architecture diagram | [design/architecture.svg](design/architecture.svg) |
+| Screen designs | [design/screens.svg](design/screens.svg) |
+
 ---
 
 ## Architecture
@@ -193,6 +202,11 @@ src/
   read/              handler.py   — DynamoDB → DSP-scoped action queue (JWT-gated)
   actions/           handler.py   — action lifecycle + playbook config (JWT-gated)
 
+design/
+  index.html         — rendered HTML mockup of the DSP dashboard
+  architecture.svg   — visual system architecture diagram
+  screens.svg        — UI screen designs
+
 PRFAQ.md            product spec written before any code
 ARCHITECTURE.md     system diagram, auth design, data model, scale gaps
 PRODUCT_SPEC_V0.md  full V0 spec: UX flows, data model, API contracts, WW config
@@ -204,4 +218,4 @@ LEARNINGS.md        what this build taught me
 
 ## What's Deliberately Missing
 
-No CI/CD, no tests, no cost optimization. The PWA frontend is specced in [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) but not yet built — customer discovery interviews ([DSP_DISCOVERY.md](DSP_DISCOVERY.md)) come first. See [LEARNINGS.md](LEARNINGS.md) for what I'd add before putting this in production.
+No CI/CD, no tests, no cost optimization. The PWA frontend is specced in [PRODUCT_SPEC_V0.md](PRODUCT_SPEC_V0.md) and designed in [Figma](https://www.figma.com/design/Z2Pvr8JVFZoyTRYuYtU3iD/Signal-Aggregator?node-id=5-168&t=96N2YyFp872MEKYl-1) / [design/](design/), but not yet built as a deployable app — customer discovery interviews ([DSP_DISCOVERY.md](DSP_DISCOVERY.md)) come first. See [LEARNINGS.md](LEARNINGS.md) for what I'd add before putting this in production.

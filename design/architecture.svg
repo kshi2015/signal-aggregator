@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660">
+  <rect width="1200" height="660" fill="#FFFFFF"/>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#CBD5E0"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#FF9900"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#8B5CF6"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#10B981"/>
+    </marker>
+  </defs>
+
+  <!-- Full-width band backgrounds -->
+  <rect x="8"  y="8"   width="1184" height="72"  rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <rect x="8"  y="88"  width="1184" height="90"  rx="8" fill="#F5F3FF" stroke="#DDD6FE"/>
+  <rect x="8"  y="186" width="780"  height="56"  rx="8" fill="#EFF6FF" stroke="#BFDBFE"/>
+  <rect x="8"  y="250" width="780"  height="86"  rx="8" fill="#F0FDF4" stroke="#BBF7D0"/>
+  <rect x="8"  y="344" width="1184" height="90"  rx="8" fill="#FFF7ED" stroke="#FED7AA"/>
+  <rect x="8"  y="442" width="780"  height="58"  rx="8" fill="#FFF1F2" stroke="#FFE4E6"/>
+  <rect x="8"  y="508" width="1184" height="128" rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+
+  <!-- Coloured label strips -->
+  <rect x="8" y="8"   width="74" height="72"  rx="8" fill="#475569"/>
+  <rect x="8" y="88"  width="74" height="90"  rx="8" fill="#6D28D9"/>
+  <rect x="8" y="186" width="74" height="56"  rx="8" fill="#1E40AF"/>
+  <rect x="8" y="250" width="74" height="86"  rx="8" fill="#065F46"/>
+  <rect x="8" y="344" width="74" height="90"  rx="8" fill="#B45309"/>
+  <rect x="8" y="442" width="74" height="58"  rx="8" fill="#9F1239"/>
+  <rect x="8" y="508" width="74" height="128" rx="8" fill="#334155"/>
+
+  <!-- Lane label text -->
+  <text transform="translate(45,44)  rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">UI / PWA</text>
+  <text transform="translate(45,133) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">AUTH</text>
+  <text transform="translate(45,214) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">API GW</text>
+  <text transform="translate(45,293) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">COMPUTE</text>
+  <text transform="translate(45,389) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">STORAGE</text>
+  <text transform="translate(45,471) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">NOTIFY</text>
+  <text transform="translate(45,572) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">DSP OWNER</text>
+
+  <!-- UI LAYER -->
+  <rect x="100" y="18" width="130" height="44" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+  <text x="165" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">DSP Browser</text>
+  <text x="165" y="51" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Mobile / Desktop</text>
+
+  <rect x="272" y="18" width="130" height="44" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+  <text x="337" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">CloudFront</text>
+  <text x="337" y="51" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">CDN + HTTPS</text>
+
+  <rect x="444" y="18" width="130" height="44" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+  <text x="509" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">S3 PWA</text>
+  <text x="509" y="51" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Static assets</text>
+
+  <line x1="230" y1="40" x2="268" y2="40" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="402" y1="40" x2="440" y2="40" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- AUTH LAYER -->
+  <rect x="100" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+  <text x="174" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Cognito User Pool</text>
+  <text x="174" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">custom:dsp_id claim</text>
+  <text x="174" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Immutable at creation</text>
+
+  <rect x="272" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+  <text x="346" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">JWT Authorizer</text>
+  <text x="346" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">Validates Cognito token</text>
+  <text x="346" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Rejects before Lambda</text>
+
+  <rect x="444" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+  <text x="518" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Ingest Authorizer λ</text>
+  <text x="518" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">x-api-key header check</text>
+  <text x="518" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">REQUEST type</text>
+
+  <rect x="616" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+  <text x="690" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Secrets Manager</text>
+  <text x="690" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">ingest-api-key</text>
+  <text x="690" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Cached per warm instance</text>
+
+  <line x1="592" y1="131" x2="612" y2="131" stroke="#8B5CF6" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+
+  <!-- API GATEWAY -->
+  <rect x="100" y="194" width="680" height="40" rx="7" fill="#1E40AF" stroke="none"/>
+  <text x="440" y="210" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="system-ui">HTTP API Gateway</text>
+  <text x="440" y="225" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.65)" font-family="system-ui">4u3d4nahch · JWT auth on /summary /actions /playbook · Request auth on /ingest</text>
+
+  <path d="M165,62 Q165,82 174,96" stroke="#8B5CF6" stroke-width="1.4" fill="none" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+  <path d="M165,62 Q165,186 230,194" stroke="#FF9900" stroke-width="1.4" fill="none" marker-end="url(#arrow-orange)"/>
+  <path d="M518,162 Q518,180 380,194" stroke="#8B5CF6" stroke-width="1.2" fill="none" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+
+  <!-- COMPUTE -->
+  <rect x="100" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+  <text x="174" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Ingest λ</text>
+  <text x="174" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">Validates + writes to S3</text>
+  <text x="174" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">POST /ingest</text>
+
+  <rect x="272" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+  <text x="346" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Aggregate λ</text>
+  <text x="346" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">Score recompute + notify</text>
+  <text x="346" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">S3 event trigger</text>
+
+  <rect x="444" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+  <text x="518" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Read λ</text>
+  <text x="518" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">DSP-scoped queue</text>
+  <text x="518" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">GET /summary</text>
+
+  <rect x="616" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+  <text x="690" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Actions λ</text>
+  <text x="690" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">Action lifecycle + playbook</text>
+  <text x="690" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">POST /actions · GET|PUT /playbook</text>
+
+  <line x1="174" y1="234" x2="174" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="346" y1="234" x2="346" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="518" y1="234" x2="518" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="690" y1="234" x2="690" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- STORAGE -->
+  <rect x="100" y="354" width="118" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+  <text x="159" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">S3 Raw Events</text>
+  <text x="159" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">events/YYYY/MM/DD/</text>
+  <text x="159" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">HH/{event_id}.json</text>
+
+  <rect x="234" y="354" width="130" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+  <text x="299" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Driver Summary</text>
+  <text x="299" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">score · dsp_id</text>
+  <text x="299" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">action_status · notified_at</text>
+
+  <rect x="380" y="354" width="130" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+  <text x="445" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Driver Actions</text>
+  <text x="445" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">in_progress · resolved</text>
+  <text x="445" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">snoozed · GSI on dsp_id</text>
+
+  <rect x="526" y="354" width="118" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+  <text x="585" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Playbook</text>
+  <text x="585" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">dsp_id · signal_key</text>
+  <text x="585" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">recommended_action</text>
+
+  <rect x="660" y="354" width="118" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+  <text x="719" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Config</text>
+  <text x="719" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">weights · threshold</text>
+  <text x="719" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">global → region → dsp</text>
+
+  <line x1="174" y1="322" x2="159" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="174" y1="322" x2="280" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="346" y1="322" x2="299" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="346" y1="322" x2="690" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="518" y1="322" x2="340" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="690" y1="322" x2="445" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="690" y1="322" x2="585" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <path d="M100,385 C84,385 84,291 272,291" stroke="#10B981" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
+
+  <!-- NOTIFY -->
+  <rect x="100" y="452" width="118" height="42" rx="7" fill="#fff" stroke="#F87171" stroke-width="1.5"/>
+  <text x="159" y="469" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">SNS Topic</text>
+  <text x="159" y="484" text-anchor="middle" font-size="9"  fill="#BE123C" font-family="system-ui">Tier 1 interrupt</text>
+
+  <rect x="234" y="452" width="118" height="42" rx="7" fill="#fff" stroke="#F87171" stroke-width="1.5"/>
+  <text x="293" y="469" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">SES</text>
+  <text x="293" y="484" text-anchor="middle" font-size="9"  fill="#BE123C" font-family="system-ui">Tier 2 nudge + digest</text>
+
+  <line x1="346" y1="322" x2="159" y2="448" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="346" y1="322" x2="293" y2="448" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- DSP OWNER -->
+  <rect x="100" y="522" width="136" height="46" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+  <text x="168" y="541" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">DSP Owner</text>
+  <text x="168" y="556" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">SMS · Email</text>
+
+  <rect x="256" y="522" width="164" height="46" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+  <text x="338" y="541" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Action Queue PWA</text>
+  <text x="338" y="556" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">CloudFront → S3 → JWT API</text>
+
+  <line x1="159" y1="494" x2="159" y2="518" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="293" y1="494" x2="190" y2="518" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- BEDROCK AGENT SIDECAR -->
+  <rect x="810" y="88" width="362" height="548" rx="12" fill="#FDF4FF" stroke="#D946EF" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="991" y="110" text-anchor="middle" font-size="9" font-weight="800" fill="#A21CAF" letter-spacing="1.2" font-family="system-ui">AGENTIC LAYER (V2)</text>
+
+  <rect x="826" y="120" width="330" height="60" rx="7" fill="#fff" stroke="#D946EF" stroke-width="1.5"/>
+  <text x="991" y="142" text-anchor="middle" font-size="12" font-weight="700" fill="#1B2E4B" font-family="system-ui">Bedrock Agent</text>
+  <text x="991" y="157" text-anchor="middle" font-size="9"  fill="#A21CAF" font-family="system-ui">Amazon Bedrock · Claude</text>
+  <text x="991" y="170" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Conversational overlay — SMS / chat</text>
+
+  <rect x="826" y="196" width="330" height="106" rx="7" fill="#fff" stroke="#E9D5FF" stroke-width="1"/>
+  <text x="991" y="216" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Action Groups</text>
+  <text x="844" y="234" font-size="9" fill="#6B7280" font-family="system-ui">→  POST /actions   (log action)</text>
+  <text x="844" y="250" font-size="9" fill="#6B7280" font-family="system-ui">→  GET /summary   (read queue)</text>
+  <text x="844" y="266" font-size="9" fill="#6B7280" font-family="system-ui">→  GET /playbook   (explain context)</text>
+  <text x="844" y="282" font-size="9" fill="#94A3B8" font-family="system-ui">Same Lambda endpoints as PWA · same audit trail</text>
+
+  <rect x="826" y="318" width="330" height="88" rx="7" fill="#fff" stroke="#E9D5FF" stroke-width="1"/>
+  <text x="991" y="338" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">DSP SMS Interaction</text>
+  <text x="844" y="357" font-size="9" fill="#6B7280" font-family="system-ui">← [Alert] Driver Maria S. score: 9</text>
+  <text x="844" y="374" font-size="9" fill="#A21CAF" font-family="system-ui">→ "snooze 3 days spoke to her"</text>
+  <text x="844" y="391" font-size="9" fill="#6B7280" font-family="system-ui">← Got it. Snoozed until Fri Apr 26. 1 other driver needs attention.</text>
+
+  <rect x="826" y="422" width="330" height="74" rx="7" fill="#fff" stroke="#E9D5FF" stroke-width="1"/>
+  <text x="991" y="442" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Why it matters</text>
+  <text x="844" y="460" font-size="9" fill="#6B7280" font-family="system-ui">DSP owners are rarely at a desk. Closing the</text>
+  <text x="844" y="476" font-size="9" fill="#6B7280" font-family="system-ui">action loop over SMS removes the last mile</text>
+  <text x="844" y="492" font-size="9" fill="#6B7280" font-family="system-ui">of friction between knowing and doing.</text>
+
+  <!-- Legend -->
+  <rect x="826" y="514" width="330" height="104" rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="991" y="532" text-anchor="middle" font-size="9" font-weight="700" fill="#94A3B8" letter-spacing=".5" font-family="system-ui">LEGEND</text>
+  <rect x="844" y="541" width="10" height="10" rx="2" fill="#8B5CF6"/><text x="860" y="551" font-size="9" fill="#475569" font-family="system-ui">Auth</text>
+  <rect x="920" y="541" width="10" height="10" rx="2" fill="#10B981"/><text x="936" y="551" font-size="9" fill="#475569" font-family="system-ui">Compute</text>
+  <rect x="1010" y="541" width="10" height="10" rx="2" fill="#D946EF"/><text x="1026" y="551" font-size="9" fill="#475569" font-family="system-ui">Agent V2</text>
+  <rect x="844" y="561" width="10" height="10" rx="2" fill="#FB923C"/><text x="860" y="571" font-size="9" fill="#475569" font-family="system-ui">Storage</text>
+  <rect x="920" y="561" width="10" height="10" rx="2" fill="#F87171"/><text x="936" y="571" font-size="9" fill="#475569" font-family="system-ui">Notify</text>
+  <rect x="1010" y="561" width="10" height="10" rx="2" fill="#1E40AF"/><text x="1026" y="571" font-size="9" fill="#475569" font-family="system-ui">API GW</text>
+  <line x1="844" y1="588" x2="862" y2="588" stroke="#CBD5E0" stroke-width="1.5"/>
+  <text x="868" y="592" font-size="9" fill="#475569" font-family="system-ui">Sync</text>
+  <line x1="920" y1="588" x2="938" y2="588" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="944" y="592" font-size="9" fill="#475569" font-family="system-ui">Auth / async</text>
+  <line x1="1010" y1="588" x2="1028" y2="588" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="1034" y="592" font-size="9" fill="#475569" font-family="system-ui">S3 event</text>
+
+  <path d="M810,214 Q796,214 784,214" stroke="#D946EF" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-purple)"/>
+</svg>

@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Aggregator — Design</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #1B2E4B;
+    --orange: #FF9900;
+    --bg:     #F0F2F5;
+    --card:   #FFFFFF;
+    --red:    #C0392B;
+    --amber:  #E67E22;
+    --green:  #27AE60;
+    --muted:  #8492A6;
+    --border: #E2E8F0;
+    --text:   #1A1F36;
+  }
+
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0F172A; color: var(--text); min-height: 100vh; }
+
+  /* ── Top nav ── */
+  .top-nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 40px; background: #0F172A; border-bottom: 1px solid #1E293B; }
+  .top-nav .logo { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .top-nav .logo span { color: var(--orange); }
+  .tab-btns { display: flex; gap: 4px; background: #1E293B; border-radius: 10px; padding: 4px; }
+  .tab-btn { padding: 8px 22px; border: none; border-radius: 7px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all .2s; background: transparent; color: #94A3B8; }
+  .tab-btn.active { background: #fff; color: var(--navy); }
+
+  /* ── Sections ── */
+  .section { display: none; padding: 40px; }
+  .section.active { display: block; }
+
+  /* ════════════════════════════════
+     ARCHITECTURE DIAGRAM
+  ════════════════════════════════ */
+  .arch-wrap { max-width: 1200px; margin: 0 auto; }
+  .arch-title { color: #fff; font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .arch-sub { color: #94A3B8; font-size: 14px; margin-bottom: 32px; }
+
+  .diagram-svg { width: 100%; border-radius: 16px; background: #fff; box-shadow: 0 25px 80px rgba(0,0,0,.5); }
+
+  /* ════════════════════════════════
+     APP PROTOTYPE
+  ════════════════════════════════ */
+  .proto-wrap { display: flex; gap: 48px; align-items: flex-start; justify-content: center; max-width: 1100px; margin: 0 auto; }
+  .proto-sidebar { flex: 0 0 220px; }
+  .proto-sidebar h3 { color: #fff; font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .flow-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .flow-list li { padding: 10px 14px; border-radius: 8px; font-size: 13px; color: #94A3B8; cursor: pointer; border: 1px solid transparent; transition: all .15s; }
+  .flow-list li:hover { background: #1E293B; color: #fff; }
+  .flow-list li.active { background: #1E293B; color: #fff; border-color: #334155; }
+  .flow-list li .flow-num { display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #334155; font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; margin-right: 8px; }
+  .flow-list li.active .flow-num { background: var(--orange); color: #000; }
+  .flow-desc { margin-top: 24px; color: #64748B; font-size: 12px; line-height: 1.6; padding: 14px; background: #1E293B; border-radius: 8px; }
+
+  /* Phone frame */
+  .phone-wrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; }
+  .phone-label { color: #475569; font-size: 12px; margin-bottom: 12px; letter-spacing: .5px; text-transform: uppercase; }
+  .phone { width: 375px; border-radius: 48px; background: #1C1C1E; padding: 14px; box-shadow: 0 0 0 1px #3A3A3C, 0 40px 100px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .phone-inner { border-radius: 36px; overflow: hidden; height: 756px; position: relative; background: var(--bg); }
+  .phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 34px; background: #1C1C1E; border-radius: 0 0 20px 20px; z-index: 10; }
+  .phone-notch::after { content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background: #2C2C2E; border-radius: 50%; }
+
+  /* Screen container */
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .screen.visible { opacity: 1; pointer-events: all; }
+
+  /* Status bar */
+  .status-bar { height: 44px; background: var(--navy); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 20px 6px; flex-shrink: 0; }
+  .status-bar .time { color: #fff; font-size: 14px; font-weight: 600; }
+  .status-bar .icons { display: flex; gap: 6px; align-items: center; }
+  .status-bar .icons svg { fill: #fff; }
+
+  /* App header */
+  .app-header { background: var(--navy); padding: 10px 20px 16px; flex-shrink: 0; }
+  .app-header .title { color: #fff; font-size: 18px; font-weight: 700; }
+  .app-header .subtitle { color: rgba(255,255,255,.55); font-size: 12px; margin-top: 1px; }
+  .app-header.with-back { display: flex; align-items: center; gap: 12px; }
+  .back-btn { width: 32px; height: 32px; border: none; background: rgba(255,255,255,.12); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; flex-shrink: 0; }
+
+  /* Scrollable content */
+  .screen-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .screen-body::-webkit-scrollbar { display: none; }
+
+  /* Summary pill */
+  .summary-pill { background: rgba(255,153,0,.12); border: 1px solid rgba(255,153,0,.3); border-radius: 20px; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #B45309; align-self: flex-start; margin-bottom: 4px; }
+  .summary-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); }
+
+  /* Section label */
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: .8px; color: var(--muted); text-transform: uppercase; margin-top: 4px; margin-bottom: 2px; }
+
+  /* Driver card */
+  .driver-card { background: var(--card); border-radius: 14px; padding: 14px 16px; border: 1px solid var(--border); cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 12px; }
+  .driver-card:active { transform: scale(.98); }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.needs-action { background: var(--red); box-shadow: 0 0 0 3px rgba(192,57,43,.15); }
+  .status-dot.watching { background: var(--amber); box-shadow: 0 0 0 3px rgba(230,126,34,.15); }
+  .status-dot.resolved { background: var(--green); }
+  .driver-info { flex: 1 }
+  .driver-name { font-size: 15px; font-weight: 600; color: var(--text); }
+  .driver-signal { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .driver-score { text-align: right; }
+  .score-badge { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; font-size: 14px; font-weight: 700; }
+  .score-badge.high { background: rgba(192,57,43,.1); color: var(--red); }
+  .score-badge.medium { background: rgba(230,126,34,.1); color: var(--amber); }
+  .score-badge.low { background: rgba(39,174,96,.1); color: var(--green); }
+  .chevron { color: #CBD5E0; font-size: 14px; }
+
+  /* Bottom tab bar */
+  .tab-bar { background: var(--card); border-top: 1px solid var(--border); display: flex; height: 72px; flex-shrink: 0; padding-bottom: 8px; }
+  .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border: none; background: transparent; }
+  .tab-item svg { width: 22px; height: 22px; }
+  .tab-item span { font-size: 10px; font-weight: 500; }
+  .tab-item.active svg { stroke: var(--orange); }
+  .tab-item.active span { color: var(--orange); }
+  .tab-item:not(.active) svg { stroke: #94A3B8; }
+  .tab-item:not(.active) span { color: #94A3B8; }
+
+  /* Detail screen */
+  .alert-banner { background: rgba(192,57,43,.08); border: 1px solid rgba(192,57,43,.2); border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .alert-banner .alert-icon { font-size: 18px; }
+  .alert-banner .alert-text { font-size: 13px; color: var(--red); font-weight: 600; }
+  .alert-banner .alert-sub { font-size: 11px; color: var(--red); opacity: .7; }
+
+  .info-card { background: var(--card); border-radius: 14px; padding: 14px 16px; border: 1px solid var(--border); }
+  .info-card-title { font-size: 11px; font-weight: 700; letter-spacing: .6px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+  .signal-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .signal-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .signal-row:first-child { padding-top: 0; }
+  .signal-type { font-size: 13px; font-weight: 600; color: var(--text); }
+  .signal-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sev-pill { padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+  .sev-high { background: rgba(192,57,43,.1); color: var(--red); }
+  .sev-medium { background: rgba(230,126,34,.1); color: var(--amber); }
+  .sev-low { background: rgba(39,174,96,.1); color: var(--green); }
+
+  .action-rec { background: var(--navy); border-radius: 14px; padding: 14px 16px; }
+  .action-rec-label { font-size: 11px; font-weight: 700; letter-spacing: .6px; color: rgba(255,255,255,.5); text-transform: uppercase; margin-bottom: 8px; }
+  .action-rec-text { font-size: 14px; color: #fff; font-weight: 500; line-height: 1.5; }
+
+  .action-btns { display: flex; gap: 8px; }
+  .btn-primary { flex: 1; padding: 14px; background: var(--orange); border: none; border-radius: 12px; font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; transition: all .15s; }
+  .btn-primary:active { transform: scale(.97); }
+  .btn-secondary { flex: 1; padding: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; }
+
+  /* Log action modal overlay */
+  .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; z-index: 20; }
+  .modal-sheet { background: var(--card); border-radius: 24px 24px 0 0; padding: 20px; width: 100%; }
+  .modal-handle { width: 36px; height: 4px; background: #E2E8F0; border-radius: 2px; margin: 0 auto 16px; }
+  .modal-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .status-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .status-option { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all .15s; }
+  .status-option.selected { border-color: var(--orange); background: rgba(255,153,0,.05); }
+  .status-option .option-icon { font-size: 18px; }
+  .status-option .option-label { font-size: 14px; font-weight: 600; color: var(--text); }
+  .status-option .option-desc { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .radio-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #CBD5E0; margin-left: auto; flex-shrink: 0; }
+  .status-option.selected .radio-dot { border-color: var(--orange); background: var(--orange); }
+  .note-field { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); resize: none; height: 72px; font-family: inherit; margin-bottom: 14px; }
+  .note-field:focus { outline: none; border-color: var(--orange); }
+
+  /* Playbook screen */
+  .playbook-card { background: var(--card); border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+  .playbook-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .playbook-row:last-child { border-bottom: none; }
+  .playbook-sev { flex-shrink: 0; margin-top: 2px; }
+  .playbook-signal { font-size: 12px; font-weight: 600; color: var(--text); }
+  .playbook-action { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .playbook-edit { color: #CBD5E0; font-size: 12px; margin-left: auto; flex-shrink: 0; margin-top: 2px; }
+
+  /* Agent SMS screen */
+  .sms-bubble-wrap { display: flex; flex-direction: column; gap: 10px; }
+  .sms-bubble { max-width: 78%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; }
+  .sms-bubble.incoming { background: #E8E8ED; color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .sms-bubble.outgoing { background: var(--orange); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .sms-bubble.agent { background: var(--navy); color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .sms-time { font-size: 10px; color: var(--muted); text-align: center; margin: 4px 0; }
+  .sms-sender { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+  .sms-header { background: #E8E8ED; border-radius: 12px; padding: 10px 14px; margin-bottom: 4px; text-align: center; }
+  .sms-header-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .sms-header-sub { font-size: 11px; color: var(--muted); }
+  .sms-input-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--card); border-top: 1px solid var(--border); flex-shrink: 0; }
+  .sms-input { flex: 1; background: #F0F2F5; border: none; border-radius: 20px; padding: 8px 14px; font-size: 14px; color: var(--text); }
+  .sms-send { width: 34px; height: 34px; border-radius: 50%; background: var(--orange); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; }
+
+  .agent-badge { background: rgba(155,48,136,.1); border: 1px solid rgba(155,48,136,.2); border-radius: 8px; padding: 6px 10px; font-size: 11px; color: #9B3088; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 8px; }
+
+  /* Resolved card */
+  .resolved-card { background: rgba(39,174,96,.05); border: 1px solid rgba(39,174,96,.2); border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .resolved-icon { font-size: 20px; }
+  .resolved-text { font-size: 13px; color: #27AE60; font-weight: 600; }
+  .resolved-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ── Top nav ── -->
+<nav class="top-nav">
+  <div class="logo">Signal<span>Aggregator</span></div>
+  <div class="tab-btns">
+    <button class="tab-btn" onclick="showSection('arch')">Architecture</button>
+    <button class="tab-btn active" onclick="showSection('proto')">App Prototype</button>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     ARCHITECTURE DIAGRAM
+══════════════════════════════════════ -->
+<section id="arch" class="section">
+  <div class="arch-wrap">
+    <div class="arch-title">System Architecture — V1</div>
+    <div class="arch-sub">Signal ingestion → aggregation → DSP action queue · Auth layer + agentic overlay</div>
+
+    <svg class="diagram-svg" viewBox="0 0 1200 660" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#CBD5E0"/>
+        </marker>
+        <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#FF9900"/>
+        </marker>
+        <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#8B5CF6"/>
+        </marker>
+        <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#10B981"/>
+        </marker>
+      </defs>
+
+      <!--
+        SWIMLANE LAYOUT
+        Left strip x=8..82 (width=74) holds coloured lane labels — boxes NEVER enter this zone.
+        Content starts at x=100. Bands are separated by 8px gaps.
+
+        Lane y ranges:
+          UI/PWA    y=8,  h=72  → content boxes top=18
+          AUTH      y=88, h=90  → content boxes top=100
+          API GW    y=186,h=56  → content boxes top=194
+          COMPUTE   y=250,h=86  → content boxes top=260
+          STORAGE   y=344,h=90  → content boxes top=354
+          NOTIFY    y=442,h=58  → content boxes top=452
+          DSP       y=508,h=128 → content boxes top=522
+      -->
+
+      <!-- ── Full-width band backgrounds ── -->
+      <rect x="8"  y="8"   width="1184" height="72"  rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+      <rect x="8"  y="88"  width="1184" height="90"  rx="8" fill="#F5F3FF" stroke="#DDD6FE"/>
+      <rect x="8"  y="186" width="780"  height="56"  rx="8" fill="#EFF6FF" stroke="#BFDBFE"/>
+      <rect x="8"  y="250" width="780"  height="86"  rx="8" fill="#F0FDF4" stroke="#BBF7D0"/>
+      <rect x="8"  y="344" width="1184" height="90"  rx="8" fill="#FFF7ED" stroke="#FED7AA"/>
+      <rect x="8"  y="442" width="780"  height="58"  rx="8" fill="#FFF1F2" stroke="#FFE4E6"/>
+      <rect x="8"  y="508" width="1184" height="128" rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+
+      <!-- ── Coloured label strips (x=8..82) — boxes start at x=100, so zero overlap ── -->
+      <rect x="8" y="8"   width="74" height="72"  rx="8" fill="#475569"/>
+      <rect x="8" y="88"  width="74" height="90"  rx="8" fill="#6D28D9"/>
+      <rect x="8" y="186" width="74" height="56"  rx="8" fill="#1E40AF"/>
+      <rect x="8" y="250" width="74" height="86"  rx="8" fill="#065F46"/>
+      <rect x="8" y="344" width="74" height="90"  rx="8" fill="#B45309"/>
+      <rect x="8" y="442" width="74" height="58"  rx="8" fill="#9F1239"/>
+      <rect x="8" y="508" width="74" height="128" rx="8" fill="#334155"/>
+
+      <!-- ── Lane label text (rotated, centred in strip at x=45) ── -->
+      <text transform="translate(45,44)  rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">UI / PWA</text>
+      <text transform="translate(45,133) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">AUTH</text>
+      <text transform="translate(45,214) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">API GW</text>
+      <text transform="translate(45,293) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">COMPUTE</text>
+      <text transform="translate(45,389) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">STORAGE</text>
+      <text transform="translate(45,471) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">NOTIFY</text>
+      <text transform="translate(45,572) rotate(-90)" text-anchor="middle" font-size="9" font-weight="800" fill="rgba(255,255,255,.9)" letter-spacing="1.2" font-family="system-ui">DSP OWNER</text>
+
+      <!-- ══ UI LAYER  (content y=18, h=44) ══ -->
+      <rect x="100" y="18" width="130" height="44" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+      <text x="165" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">DSP Browser</text>
+      <text x="165" y="51" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Mobile / Desktop</text>
+
+      <rect x="272" y="18" width="130" height="44" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+      <text x="337" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">CloudFront</text>
+      <text x="337" y="51" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">CDN + HTTPS</text>
+
+      <rect x="444" y="18" width="130" height="44" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+      <text x="509" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">S3 PWA</text>
+      <text x="509" y="51" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Static assets</text>
+
+      <line x1="230" y1="40" x2="268" y2="40" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="402" y1="40" x2="440" y2="40" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- ══ AUTH LAYER  (content y=100, h=62) ══ -->
+      <rect x="100" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="174" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Cognito User Pool</text>
+      <text x="174" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">custom:dsp_id claim</text>
+      <text x="174" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Immutable at creation</text>
+
+      <rect x="272" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="346" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">JWT Authorizer</text>
+      <text x="346" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">Validates Cognito token</text>
+      <text x="346" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Rejects before Lambda</text>
+
+      <rect x="444" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="518" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Ingest Authorizer λ</text>
+      <text x="518" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">x-api-key header check</text>
+      <text x="518" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">REQUEST type</text>
+
+      <rect x="616" y="100" width="148" height="62" rx="7" fill="#fff" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="690" y="120" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Secrets Manager</text>
+      <text x="690" y="135" text-anchor="middle" font-size="9"  fill="#7C3AED" font-family="system-ui">ingest-api-key</text>
+      <text x="690" y="150" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Cached per warm instance</text>
+
+      <!-- Ingest Auth → Secrets Manager -->
+      <line x1="592" y1="131" x2="612" y2="131" stroke="#8B5CF6" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+
+      <!-- ══ API GATEWAY  (content y=194, h=40) ══ -->
+      <rect x="100" y="194" width="680" height="40" rx="7" fill="#1E40AF" stroke="none"/>
+      <text x="440" y="210" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="system-ui">HTTP API Gateway</text>
+      <text x="440" y="225" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.65)" font-family="system-ui">4u3d4nahch · JWT auth on /summary /actions /playbook · Request auth on /ingest</text>
+
+      <!-- Browser → Cognito (dashed purple auth flow) -->
+      <path d="M165,62 Q165,82 174,96" stroke="#8B5CF6" stroke-width="1.4" fill="none" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+      <!-- Browser → API GW (orange bearer JWT) -->
+      <path d="M165,62 Q165,186 230,194" stroke="#FF9900" stroke-width="1.4" fill="none" marker-end="url(#arrow-orange)"/>
+      <!-- Ingest Auth → API GW (dashed, internal caller path) -->
+      <path d="M518,162 Q518,180 380,194" stroke="#8B5CF6" stroke-width="1.2" fill="none" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+
+      <!-- ══ COMPUTE  (content y=260, h=62) ══ -->
+      <rect x="100" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+      <text x="174" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Ingest λ</text>
+      <text x="174" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">Validates + writes to S3</text>
+      <text x="174" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">POST /ingest</text>
+
+      <rect x="272" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+      <text x="346" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Aggregate λ</text>
+      <text x="346" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">Score recompute + notify</text>
+      <text x="346" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">S3 event trigger</text>
+
+      <rect x="444" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+      <text x="518" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Read λ</text>
+      <text x="518" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">DSP-scoped queue</text>
+      <text x="518" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">GET /summary</text>
+
+      <rect x="616" y="260" width="148" height="62" rx="7" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+      <text x="690" y="279" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Actions λ</text>
+      <text x="690" y="294" text-anchor="middle" font-size="9"  fill="#047857" font-family="system-ui">Action lifecycle + playbook</text>
+      <text x="690" y="309" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">POST /actions · GET|PUT /playbook</text>
+
+      <!-- API GW → Lambdas (vertical drop) -->
+      <line x1="174" y1="234" x2="174" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="346" y1="234" x2="346" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="518" y1="234" x2="518" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="690" y1="234" x2="690" y2="256" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- ══ STORAGE  (content y=354, h=62) ══ -->
+      <rect x="100" y="354" width="118" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+      <text x="159" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">S3 Raw Events</text>
+      <text x="159" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">events/YYYY/MM/DD/</text>
+      <text x="159" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">HH/{event_id}.json</text>
+
+      <rect x="234" y="354" width="130" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+      <text x="299" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Driver Summary</text>
+      <text x="299" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">score · dsp_id</text>
+      <text x="299" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">action_status · notified_at</text>
+
+      <rect x="380" y="354" width="130" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+      <text x="445" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Driver Actions</text>
+      <text x="445" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">in_progress · resolved</text>
+      <text x="445" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">snoozed · GSI on dsp_id</text>
+
+      <rect x="526" y="354" width="118" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+      <text x="585" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Playbook</text>
+      <text x="585" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">dsp_id · signal_key</text>
+      <text x="585" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">recommended_action</text>
+
+      <rect x="660" y="354" width="118" height="62" rx="7" fill="#fff" stroke="#FB923C" stroke-width="1.5"/>
+      <text x="719" y="373" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Config</text>
+      <text x="719" y="388" text-anchor="middle" font-size="9"  fill="#C2410C" font-family="system-ui">weights · threshold</text>
+      <text x="719" y="403" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">global → region → dsp</text>
+
+      <!-- Lambda → Storage arrows -->
+      <line x1="174" y1="322" x2="159" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="174" y1="322" x2="280" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="346" y1="322" x2="299" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="346" y1="322" x2="690" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="518" y1="322" x2="340" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="690" y1="322" x2="445" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="690" y1="322" x2="585" y2="350" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- S3 → Aggregate (S3 event notification — curves left around the strip then back up) -->
+      <path d="M100,385 C84,385 84,291 272,291" stroke="#10B981" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
+
+      <!-- ══ NOTIFY  (content y=452, h=42) ══ -->
+      <rect x="100" y="452" width="118" height="42" rx="7" fill="#fff" stroke="#F87171" stroke-width="1.5"/>
+      <text x="159" y="469" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">SNS Topic</text>
+      <text x="159" y="484" text-anchor="middle" font-size="9"  fill="#BE123C" font-family="system-ui">Tier 1 interrupt</text>
+
+      <rect x="234" y="452" width="118" height="42" rx="7" fill="#fff" stroke="#F87171" stroke-width="1.5"/>
+      <text x="293" y="469" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">SES</text>
+      <text x="293" y="484" text-anchor="middle" font-size="9"  fill="#BE123C" font-family="system-ui">Tier 2 nudge + digest</text>
+
+      <!-- Aggregate → Notify -->
+      <line x1="346" y1="322" x2="159" y2="448" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="346" y1="322" x2="293" y2="448" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- ══ DSP OWNER  (content y=522, h=46) ══ -->
+      <rect x="100" y="522" width="136" height="46" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+      <text x="168" y="541" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">DSP Owner</text>
+      <text x="168" y="556" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">SMS · Email</text>
+
+      <rect x="256" y="522" width="164" height="46" rx="7" fill="#fff" stroke="#CBD5E0" stroke-width="1.5"/>
+      <text x="338" y="541" text-anchor="middle" font-size="11" font-weight="700" fill="#1B2E4B" font-family="system-ui">Action Queue PWA</text>
+      <text x="338" y="556" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">CloudFront → S3 → JWT API</text>
+
+      <!-- Notify → DSP Owner -->
+      <line x1="159" y1="494" x2="159" y2="518" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="293" y1="494" x2="190" y2="518" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- ══ BEDROCK AGENT SIDECAR (right column, spans AUTH → DSP) ══ -->
+      <rect x="810" y="88" width="362" height="548" rx="12" fill="#FDF4FF" stroke="#D946EF" stroke-width="1.5" stroke-dasharray="6,4"/>
+      <text x="991" y="110" text-anchor="middle" font-size="9" font-weight="800" fill="#A21CAF" letter-spacing="1.2" font-family="system-ui">AGENTIC LAYER (V2)</text>
+
+      <rect x="826" y="120" width="330" height="60" rx="7" fill="#fff" stroke="#D946EF" stroke-width="1.5"/>
+      <text x="991" y="142" text-anchor="middle" font-size="12" font-weight="700" fill="#1B2E4B" font-family="system-ui">Bedrock Agent</text>
+      <text x="991" y="157" text-anchor="middle" font-size="9"  fill="#A21CAF" font-family="system-ui">Amazon Bedrock · Claude</text>
+      <text x="991" y="170" text-anchor="middle" font-size="9"  fill="#94A3B8" font-family="system-ui">Conversational overlay — SMS / chat</text>
+
+      <rect x="826" y="196" width="330" height="106" rx="7" fill="#fff" stroke="#E9D5FF" stroke-width="1"/>
+      <text x="991" y="216" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Action Groups</text>
+      <text x="844" y="234" font-size="9" fill="#6B7280" font-family="system-ui">→  POST /actions   (log action)</text>
+      <text x="844" y="250" font-size="9" fill="#6B7280" font-family="system-ui">→  GET /summary   (read queue)</text>
+      <text x="844" y="266" font-size="9" fill="#6B7280" font-family="system-ui">→  GET /playbook   (explain context)</text>
+      <text x="844" y="282" font-size="9" fill="#94A3B8" font-family="system-ui">Same Lambda endpoints as PWA · same audit trail</text>
+
+      <rect x="826" y="318" width="330" height="88" rx="7" fill="#fff" stroke="#E9D5FF" stroke-width="1"/>
+      <text x="991" y="338" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">DSP SMS Interaction</text>
+      <text x="844" y="357" font-size="9" fill="#6B7280" font-family="system-ui">← [Alert] Driver Maria S. score: 9</text>
+      <text x="844" y="374" font-size="9" fill="#A21CAF" font-family="system-ui">→ "snooze 3 days spoke to her"</text>
+      <text x="844" y="391" font-size="9" fill="#6B7280" font-family="system-ui">← Got it. Snoozed until Fri Apr 26. 1 other driver needs attention.</text>
+
+      <rect x="826" y="422" width="330" height="74" rx="7" fill="#fff" stroke="#E9D5FF" stroke-width="1"/>
+      <text x="991" y="442" text-anchor="middle" font-size="10" font-weight="700" fill="#1B2E4B" font-family="system-ui">Why it matters</text>
+      <text x="844" y="460" font-size="9" fill="#6B7280" font-family="system-ui">DSP owners are rarely at a desk. Closing the</text>
+      <text x="844" y="476" font-size="9" fill="#6B7280" font-family="system-ui">action loop over SMS removes the last mile</text>
+      <text x="844" y="492" font-size="9" fill="#6B7280" font-family="system-ui">of friction between knowing and doing.</text>
+
+      <!-- Legend -->
+      <rect x="826" y="514" width="330" height="104" rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+      <text x="991" y="532" text-anchor="middle" font-size="9" font-weight="700" fill="#94A3B8" letter-spacing=".5" font-family="system-ui">LEGEND</text>
+      <rect x="844" y="541" width="10" height="10" rx="2" fill="#8B5CF6"/><text x="860" y="551" font-size="9" fill="#475569" font-family="system-ui">Auth</text>
+      <rect x="920" y="541" width="10" height="10" rx="2" fill="#10B981"/><text x="936" y="551" font-size="9" fill="#475569" font-family="system-ui">Compute</text>
+      <rect x="1010" y="541" width="10" height="10" rx="2" fill="#D946EF"/><text x="1026" y="551" font-size="9" fill="#475569" font-family="system-ui">Agent V2</text>
+      <rect x="844" y="561" width="10" height="10" rx="2" fill="#FB923C"/><text x="860" y="571" font-size="9" fill="#475569" font-family="system-ui">Storage</text>
+      <rect x="920" y="561" width="10" height="10" rx="2" fill="#F87171"/><text x="936" y="571" font-size="9" fill="#475569" font-family="system-ui">Notify</text>
+      <rect x="1010" y="561" width="10" height="10" rx="2" fill="#1E40AF"/><text x="1026" y="571" font-size="9" fill="#475569" font-family="system-ui">API GW</text>
+      <line x1="844" y1="588" x2="862" y2="588" stroke="#CBD5E0" stroke-width="1.5"/>
+      <text x="868" y="592" font-size="9" fill="#475569" font-family="system-ui">Sync</text>
+      <line x1="920" y1="588" x2="938" y2="588" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="944" y="592" font-size="9" fill="#475569" font-family="system-ui">Auth / async</text>
+      <line x1="1010" y1="588" x2="1028" y2="588" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="1034" y="592" font-size="9" fill="#475569" font-family="system-ui">S3 event</text>
+
+      <!-- Agent → API GW connection -->
+      <path d="M810,214 Q796,214 784,214" stroke="#D946EF" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-purple)"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     APP PROTOTYPE
+══════════════════════════════════════ -->
+<section id="proto" class="section active">
+  <div class="proto-wrap">
+
+    <!-- Sidebar -->
+    <div class="proto-sidebar">
+      <h3>Flows</h3>
+      <ul class="flow-list">
+        <li class="active" onclick="setFlow(0, this)"><span class="flow-num">1</span>Weekly Review</li>
+        <li onclick="setFlow(1, this)"><span class="flow-num">2</span>Urgent Alert Response</li>
+        <li onclick="setFlow(2, this)"><span class="flow-num">3</span>Agent SMS</li>
+        <li onclick="setFlow(3, this)"><span class="flow-num">4</span>Playbook Config</li>
+      </ul>
+      <div class="flow-desc" id="flow-desc">
+        DSP owner opens app Monday morning, reviews the action queue, taps a flagged driver, and logs that they've spoken with them.
+      </div>
+    </div>
+
+    <!-- Phone -->
+    <div class="phone-wrap">
+      <div class="phone-label">Signal Aggregator PWA</div>
+      <div class="phone">
+        <div class="phone-inner" id="phone-inner">
+          <div class="phone-notch"></div>
+          <!-- screens injected by JS -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+// ── Section toggle ──
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (id === 'proto') renderFlow(currentFlow);
+}
+
+// ── Status bar HTML ──
+function statusBar(title, subtitle, back) {
+  return `
+    <div class="status-bar">
+      <span class="time">9:41</span>
+      <div class="icons">
+        <svg width="16" height="12" viewBox="0 0 16 12"><rect x="0" y="3" width="3" height="9" rx="1"/><rect x="4" y="2" width="3" height="10" rx="1"/><rect x="8" y="1" width="3" height="11" rx="1"/><rect x="12" y="0" width="3" height="12" rx="1"/></svg>
+        <svg width="16" height="12" viewBox="0 0 20 14"><rect x="1" y="1" width="16" height="12" rx="2" stroke="#fff" stroke-width="1.5" fill="none"/><rect x="17" y="4" width="2" height="6" rx="1" fill="#fff"/><rect x="2" y="2" width="11" height="10" rx="1" fill="#fff"/></svg>
+      </div>
+    </div>
+    ${back
+      ? `<div class="app-header with-back">
+           <button class="back-btn" onclick="${back}">‹</button>
+           <div><div class="app-header-title" style="color:#fff;font-size:17px;font-weight:700">${title}</div>${subtitle ? `<div class="app-header .subtitle" style="color:rgba(255,255,255,.55);font-size:12px">${subtitle}</div>` : ''}</div>
+         </div>`
+      : `<div class="app-header"><div class="title">${title}</div>${subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}</div>`
+    }`;
+}
+
+function tabBar(active) {
+  const tabs = [
+    {id:'queue', label:'Queue', icon:'<polyline points="9,11 12,14 22,4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21,12v7a2,2,0,0,1-2,2H5a2,2,0,0,1-2-2V5a2,2,0,0,1,2-2h11" stroke-linecap="round"/>'},
+    {id:'playbook', label:'Playbook', icon:'<path d="M4,19.5A2.5,2.5,0,0,1,6.5,17H20" stroke-linecap="round"/><path d="M6.5,2H20v20H6.5A2.5,2.5,0,0,1,4,19.5v-15A2.5,2.5,0,0,1,6.5,2z" stroke-linecap="round"/>'},
+    {id:'agent', label:'Agent', icon:'<circle cx="12" cy="12" r="10"/><path d="M8,14s1.5,2,4,2,4-2,4-2" stroke-linecap="round"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-linecap="round" stroke-width="2.5"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-linecap="round" stroke-width="2.5"/>'},
+  ];
+  return `<div class="tab-bar">
+    ${tabs.map(t => `
+      <button class="tab-item ${active===t.id?'active':''}" onclick="tabNav('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">${t.icon}</svg>
+        <span>${t.label}</span>
+      </button>`).join('')}
+  </div>`;
+}
+
+// ── Screens ──
+function screenQueue() {
+  return `
+    <div class="screen visible" id="s-queue">
+      ${statusBar('Summit Logistics', '3 drivers flagged this week')}
+      <div class="screen-body">
+        <div class="summary-pill"><span class="dot"></span>3 drivers need attention</div>
+
+        <div class="section-label">Needs Action</div>
+        <div class="driver-card" onclick="showDetail()">
+          <span class="status-dot needs-action"></span>
+          <div class="driver-info">
+            <div class="driver-name">Maria Santos</div>
+            <div class="driver-signal">Customer complaint · High · 2 days ago</div>
+          </div>
+          <div class="driver-score"><div class="score-badge high">9</div></div>
+          <span class="chevron">›</span>
+        </div>
+
+        <div class="section-label">Watching</div>
+        <div class="driver-card">
+          <span class="status-dot watching"></span>
+          <div class="driver-info">
+            <div class="driver-name">James Torres</div>
+            <div class="driver-signal">Hard braking · Low · 5 hours ago</div>
+          </div>
+          <div class="driver-score"><div class="score-badge medium">2</div></div>
+          <span class="chevron">›</span>
+        </div>
+
+        <div class="section-label">Resolved this week</div>
+        <div class="driver-card">
+          <span class="status-dot resolved"></span>
+          <div class="driver-info">
+            <div class="driver-name">Chen Wei</div>
+            <div class="driver-signal">Coaching session logged · Yesterday</div>
+          </div>
+          <div class="driver-score"><div class="score-badge low">✓</div></div>
+        </div>
+      </div>
+      ${tabBar('queue')}
+    </div>`;
+}
+
+function screenDetail(showModal) {
+  return `
+    <div class="screen visible" id="s-detail">
+      ${statusBar('Maria Santos', 'driver-001', 'showQueue()')}
+      <div class="screen-body">
+        <div class="alert-banner">
+          <span class="alert-icon">⚠️</span>
+          <div>
+            <div class="alert-text">Threshold crossed · Score 9</div>
+            <div class="alert-sub">Notification sent · April 23 at 10:02 AM</div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">Signals this week</div>
+          <div class="signal-row">
+            <div>
+              <div class="signal-type">Customer Complaint</div>
+              <div class="signal-meta">April 23 · 10:00 AM · customer-feedback-system</div>
+            </div>
+            <span class="sev-pill sev-high">High</span>
+          </div>
+        </div>
+
+        <div class="action-rec">
+          <div class="action-rec-label">Recommended action</div>
+          <div class="action-rec-text">Call driver same day + document in Mentor</div>
+        </div>
+
+        <div class="action-btns">
+          <button class="btn-primary" onclick="showLogAction()">Log Action</button>
+          <button class="btn-secondary" onclick="showSnooze()">Snooze</button>
+        </div>
+      </div>
+      ${tabBar('queue')}
+      ${showModal ? modalLogAction() : ''}
+    </div>`;
+}
+
+function modalLogAction() {
+  return `
+    <div class="modal-overlay" id="modal" onclick="dismissModal(event)">
+      <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <div class="modal-title">Log Action</div>
+        <div class="modal-sub">Maria Santos · driver-001</div>
+        <div class="status-options">
+          <div class="status-option selected" onclick="selectOption(this)">
+            <span class="option-icon">⚡</span>
+            <div><div class="option-label">In Progress</div><div class="option-desc">Spoken with driver, monitoring</div></div>
+            <div class="radio-dot"></div>
+          </div>
+          <div class="status-option" onclick="selectOption(this)">
+            <span class="option-icon">✅</span>
+            <div><div class="option-label">Resolved</div><div class="option-desc">Issue addressed and closed</div></div>
+            <div class="radio-dot"></div>
+          </div>
+          <div class="status-option" onclick="selectOption(this)">
+            <span class="option-icon">⏸</span>
+            <div><div class="option-label">Snooze</div><div class="option-desc">Check back in 3–7 days</div></div>
+            <div class="radio-dot"></div>
+          </div>
+        </div>
+        <textarea class="note-field" placeholder="Add a note (optional)…">Had 1:1 with Maria — she acknowledged the complaint and will adjust her approach. Will monitor this week.</textarea>
+        <button class="btn-primary" onclick="confirmAction()" style="width:100%">Confirm</button>
+      </div>
+    </div>`;
+}
+
+function screenResolved() {
+  return `
+    <div class="screen visible" id="s-resolved">
+      ${statusBar('Maria Santos', 'driver-001', 'showQueue()')}
+      <div class="screen-body">
+        <div class="resolved-card">
+          <span class="resolved-icon">✅</span>
+          <div>
+            <div class="resolved-text">Action logged — In Progress</div>
+            <div class="resolved-sub">April 24 · 9:41 AM · Summit Logistics</div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">Action note</div>
+          <div style="font-size:13px;color:var(--text);line-height:1.6">Had 1:1 with Maria — she acknowledged the complaint and will adjust her approach. Will monitor this week.</div>
+        </div>
+
+        <div class="action-rec" style="background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.2)">
+          <div class="action-rec-label" style="color:rgba(39,174,96,.7)">Recommended action logged</div>
+          <div class="action-rec-text" style="color:#27AE60">Call driver same day + document in Mentor</div>
+        </div>
+
+        <button class="btn-secondary" onclick="showQueue()" style="width:100%">← Back to queue</button>
+      </div>
+      ${tabBar('queue')}
+    </div>`;
+}
+
+function screenSMS() {
+  return `
+    <div class="screen visible" id="s-sms" style="background:#fff">
+      ${statusBar('Messages', 'Signal Aggregator')}
+      <div class="screen-body" style="padding:12px 16px;gap:6px">
+        <div class="sms-header">
+          <div class="sms-header-name">Signal Aggregator</div>
+          <div class="sms-header-sub">Automated safety alerts · Summit Logistics</div>
+        </div>
+        <div class="agent-badge">
+          <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 14a6 6 0 110-12 6 6 0 010 12zm-1-5h2v2H9v-2zm0-6h2v4H9V5z"/></svg>
+          Bedrock Agent enabled
+        </div>
+        <div class="sms-bubble-wrap">
+          <div class="sms-time">Today, 10:02 AM</div>
+          <div class="sms-bubble incoming">
+            [Signal Aggregator] Driver Maria S. score: <strong>9</strong><br>
+            Top signal: customer_complaint (high) — today<br>
+            Review: app.signal-agg.com/d/driver-001<br>
+            <br>
+            Reply STOP to unsubscribe
+          </div>
+          <div class="sms-time">10:18 AM</div>
+          <div class="sms-bubble outgoing">snooze 3 days spoke to her this morning</div>
+          <div class="sms-bubble agent">
+            Got it. Maria S. snoozed until <strong>Fri Apr 26</strong>. I've logged the note.<br><br>
+            You have <strong>1 other driver</strong> needing attention this week — James Torres (score 2, hard braking). Want a summary?
+          </div>
+          <div class="sms-bubble outgoing">yes</div>
+          <div class="sms-bubble agent">
+            <strong>James Torres</strong> · score 2 · watching<br>
+            Signal: hard_braking · low · 5h ago<br>
+            Recommended: Monitor — no action unless pattern in 7 days<br><br>
+            Nothing urgent. I'll alert you if his score moves.
+          </div>
+        </div>
+      </div>
+      <div class="sms-input-bar">
+        <input class="sms-input" placeholder="Message" type="text"/>
+        <button class="sms-send">↑</button>
+      </div>
+    </div>`;
+}
+
+function screenPlaybook() {
+  const rows = [
+    {sig:'Customer complaint', sev:'High', sev_cls:'sev-high', action:'Call driver same day + document in Mentor'},
+    {sig:'Customer complaint', sev:'Medium', sev_cls:'sev-medium', action:'Address at next weekly check-in'},
+    {sig:'Customer complaint', sev:'Low', sev_cls:'sev-low', action:'Monitor — flag if pattern continues'},
+    {sig:'On-road observation', sev:'High', sev_cls:'sev-high', action:'Review incident + schedule coaching'},
+    {sig:'On-road observation', sev:'Medium', sev_cls:'sev-medium', action:'Discuss at next check-in'},
+    {sig:'On-road observation', sev:'Low', sev_cls:'sev-low', action:'Log for awareness — no action required'},
+    {sig:'Hard braking', sev:'High', sev_cls:'sev-high', action:'Review dashcam + schedule defensive driving'},
+    {sig:'Hard braking', sev:'Medium', sev_cls:'sev-medium', action:'Monitor — no action unless pattern in 7 days'},
+    {sig:'Hard braking', sev:'Low', sev_cls:'sev-low', action:'No action'},
+  ];
+  return `
+    <div class="screen visible" id="s-playbook">
+      ${statusBar('Action Playbook', 'Tap any row to edit')}
+      <div class="screen-body">
+        <div class="playbook-card">
+          ${rows.map(r => `
+            <div class="playbook-row">
+              <span class="sev-pill ${r.sev_cls} playbook-sev">${r.sev}</span>
+              <div style="flex:1">
+                <div class="playbook-signal">${r.sig}</div>
+                <div class="playbook-action">${r.action}</div>
+              </div>
+              <span class="playbook-edit">✏️</span>
+            </div>`).join('')}
+        </div>
+      </div>
+      ${tabBar('playbook')}
+    </div>`;
+}
+
+// ── Navigation ──
+let currentFlow = 0;
+
+const flows = [
+  {
+    desc: 'DSP owner opens app Monday morning, reviews the action queue, taps a flagged driver, and logs that they've spoken with them.',
+    render: () => { render(screenQueue()); }
+  },
+  {
+    desc: 'DSP owner receives a Tier 1 SMS alert for Maria S., taps the deep link, reviews the signals, and logs the action directly from the detail view.',
+    render: () => { render(screenDetail(false)); }
+  },
+  {
+    desc: 'The agent intercepts a reply to the Tier 1 SMS — "snooze 3 days spoke to her" — logs the action via POST /actions, and proactively surfaces the next driver.',
+    render: () => { render(screenSMS()); }
+  },
+  {
+    desc: 'DSP owner opens Playbook tab to review and edit the recommended actions for each signal type and severity combination.',
+    render: () => { render(screenPlaybook()); }
+  },
+];
+
+function render(html) {
+  document.getElementById('phone-inner').innerHTML = '<div class="phone-notch"></div>' + html;
+}
+
+function setFlow(idx, el) {
+  currentFlow = idx;
+  document.querySelectorAll('.flow-list li').forEach(li => li.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('flow-desc').textContent = flows[idx].desc;
+  flows[idx].render();
+}
+
+function tabNav(id) {
+  if (id === 'queue') render(screenQueue());
+  if (id === 'playbook') render(screenPlaybook());
+  if (id === 'agent') render(screenSMS());
+}
+
+// Screen transitions from prototype interactions
+function showDetail()    { render(screenDetail(false)); }
+function showQueue()     { render(screenQueue()); }
+function showLogAction() { render(screenDetail(true)); }
+function showSnooze()    { render(screenDetail(false)); }
+function dismissModal(e) { render(screenDetail(false)); }
+function confirmAction() { render(screenResolved()); }
+
+function selectOption(el) {
+  document.querySelectorAll('.status-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function renderFlow(idx) { flows[idx].render(); }
+
+// Init
+renderFlow(0);
+</script>
+</body>
+</html>
