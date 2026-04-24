@@ -14,9 +14,9 @@ DSPs manage safety across fragmented channels — hard-braking telemetry, custom
 
 Signal Aggregator fixes this with a single ingest layer, unified per-driver severity scores, and threshold-based notifications that surface only what matters. Owners can now answer "which drivers need attention this week?" in seconds.
 
-"Signal Aggregator turns dozens of raw signals into a handful of clear next steps," said the product owner.
+"Signal Aggregator turns dozens of raw signals into a handful of clear next steps," said the product owner. "And with the agent layer, taking those steps doesn't require opening a new tool — you can act from wherever you already are."
 
-Built on AWS Lambda, S3, DynamoDB, and SNS, it uses a configurable threshold engine with support for per-region rules.
+Built on AWS Lambda, S3, DynamoDB, SNS, and Amazon Bedrock, it uses a configurable threshold engine with support for per-region rules and a conversational interface that lets DSP owners log actions, ask questions about their fleet, and close the loop on safety issues without leaving the channel they're already in.
 
 ---
 
@@ -73,6 +73,29 @@ Planned UI progression:
 - **v2:** Amazon Managed Grafana for a polished, real-time dashboard — connects natively to DynamoDB and CloudWatch, supports SAML/SSO for external DSP user access, and produces professional visualizations without custom frontend work. QuickSight may be added alongside Grafana specifically for historical trend analysis once sufficient data accumulates in S3.
 
 Other future investments: per-DSP threshold configuration, historical trend analysis, and deeper integration with upstream signal sources.
+
+**Q: Why introduce an agent when the action queue already tells owners what to do?**
+A: The action queue tells owners *what* to do. An agent lets them *do it* — from wherever they are, in whatever interface they're already using.
+
+A DSP owner managing 50 drivers is rarely at a desk. They're on the floor, in a van, or in back-to-back meetings. Opening an app to log an action adds friction that compounds across dozens of drivers per week. The insight behind the agentic layer isn't that DSPs lack information — it's that the last mile between "I know what needs to happen" and "I've recorded that I did it" is where behavior change actually breaks down.
+
+The agent makes that last mile disappear. A DSP owner who receives a Tier 1 SMS alert can reply "snooze 3 days, spoke to her this morning" and the action is logged. They never open the app. The system knows the issue is being handled. The closed loop — signal → recommended action → confirmed response — closes over a text message instead of requiring a separate workflow.
+
+Beyond action logging, the agent serves a second job: synthesis. The action queue shows a score and a recommended action, but DSP owners often want to understand *why* a driver is flagged before deciding what to do. "Explain Maria's situation this week" is a natural question. The answer — which signals contributed, when they arrived, whether there's a pattern — exists in DynamoDB but requires combining three tables and forming a coherent narrative. An agent does this in a single response that would otherwise require the owner to click through several screens.
+
+The architectural position is deliberate: the agent is a sidecar, not a replacement. It reads the same data and calls the same action endpoints as the PWA. A DSP owner who prefers the app uses the app. One who prefers SMS uses SMS. The agent adds an interface; it doesn't change what the system knows or does.
+
+Candidate interaction patterns for V2:
+
+| Trigger | What the owner says | What happens |
+|---|---|---|
+| Reply to Tier 1 SMS alert | "Snooze 3 days, spoke to her" | Agent calls `POST /actions` with status=snoozed, snooze_until=+3d |
+| Reply to Tier 1 SMS alert | "Log resolved, sent to coaching" | Agent calls `POST /actions` with status=resolved, note captured |
+| Proactive check-in | "Who needs attention before Monday?" | Agent queries `/summary`, synthesises a ranked list in plain language |
+| Drill-down | "Why is driver-003 flagged?" | Agent reads driver summary + recent events, returns a narrative explanation |
+| Trend question | "Did my interventions last month actually help?" | Agent queries action history + score history, reports outcome patterns |
+
+The underlying AWS primitive is Amazon Bedrock Agents, with action groups wired to the existing Lambda endpoints. The agent never writes data directly — all mutations go through the same `POST /actions` and `PUT /playbook` endpoints the PWA uses, so audit trails and access controls remain consistent regardless of which interface initiated the action.
 
 ### Technical Questions
 
