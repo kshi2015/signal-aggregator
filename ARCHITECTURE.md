@@ -23,6 +23,14 @@ flowchart TD
         IAL -.->|"reads secret"| SM
     end
 
+    subgraph Audit["Audit Layer"]
+        CT["CloudTrail\nManagement + Data Events"]
+        CWL["CloudWatch Logs\ncloudtrail/signal-aggregator"]
+        CTB[("S3\nCloudTrail Logs")]
+        CT -->|"delivers logs"| CTB
+        CT -->|"streams events"| CWL
+    end
+
     subgraph Ingest
         A(["POST /ingest"])
         AG1["HTTP API Gateway"]
@@ -94,6 +102,14 @@ flowchart TD
     ACL -- "read/write prefs" --> NP
     ACL -- "denormalize action_status" --> DS
     AL -- "read notification prefs" --> NP
+
+    CT -.->|"captures all API calls"| AG1
+    CT -.->|"captures all API calls"| AG2
+    CT -.->|"management + data events"| IL
+    CT -.->|"management + data events"| AL
+    CT -.->|"management + data events"| RL
+    CT -.->|"management + data events"| ACL
+    CT -.->|"object-level events"| S3
 ```
 
 > AG1 and AG2 are the same HTTP API (`4u3d4nahch`). Shown separately for layout clarity.
@@ -164,6 +180,8 @@ A Progressive Web App served from S3 via CloudFront. Mobile-first. Renders an ac
 | Action Playbook | DynamoDB | PK: `dsp_id`, SK: `signal_key` (`{signal_type}#{severity}`) → DSP-configured recommended action text. Defaults applied for missing entries at read time. |
 | Notification Prefs | DynamoDB | PK: `dsp_id` → per-tier enable flags, digest schedule, quiet hours, timezone, contact info |
 | Ingest API Key | Secrets Manager | Single secret string. Read by the Ingest Authorizer Lambda on first invocation per warm instance. |
+| CloudTrail Logs | S3 (`signal-aggregator-cloudtrail-logs`) | Audit log of all management and selected data events. Lifecycle: Standard → IA at 30 days → Glacier at 90 days → deleted at 365 days. Log file integrity validation enabled. |
+| CloudTrail Log Stream | CloudWatch Logs (`cloudtrail/signal-aggregator`) | Real-time stream of CloudTrail events for metric filters and alarms. |
 
 ---
 
@@ -226,6 +244,45 @@ notification fires when score ≥ 9
 - Score decay weighting (recent events weighted more heavily within the window)
 - WW region expansion (config hierarchy and locale structure already in place)
 - Multi-user roles within a DSP (owner vs. ops manager)
+
+---
+
+## Audit Logging (CloudTrail)
+
+A single multi-region trail (`signal-aggregator-trail`) captures all AWS API activity for this account and delivers logs to a dedicated S3 bucket with log file integrity validation enabled.
+
+### Trail configuration
+
+| Property | Value |
+|---|---|
+| Trail name | `signal-aggregator-trail` |
+| Scope | Multi-region (home: `us-east-1`) |
+| S3 destination | `signal-aggregator-cloudtrail-logs` |
+| CloudWatch Logs | `cloudtrail/signal-aggregator` |
+| Log file validation | Enabled (SHA-256 digest per delivery) |
+| Management events | All (Read + Write) |
+
+### Data events captured
+
+| Resource type | Scope | Rationale |
+|---|---|---|
+| `AWS::S3::Object` | `signal-aggregator-raw-*` bucket only | Object-level read/write audit on the source-of-truth event store |
+| `AWS::Lambda::Function` | All 5 functions | Invocation audit trail — who triggered each function and when |
+| DynamoDB | Not enabled | High per-item volume; management events (table-level) are sufficient |
+
+### CloudWatch alarm
+
+A metric filter on the `cloudtrail/signal-aggregator` log group fires to the SNS topic if the trail is modified or stopped:
+
+```
+filter pattern: { ($.eventName = DeleteTrail) || ($.eventName = StopLogging) || ($.eventName = UpdateTrail) }
+metric: SignalAggregator/Security / CloudTrailTamper
+alarm: threshold ≥ 1 over 5 minutes → signal-aggregator-notifications SNS topic
+```
+
+### S3 bucket policy note
+
+The CloudTrail logs bucket requires an explicit bucket policy granting `cloudtrail.amazonaws.com` `s3:GetBucketAcl` and `s3:PutObject`, scoped to the trail ARN via `aws:SourceArn`. The console trail creation wizard applies this automatically; manual setups must apply it before logging will start.
 
 ---
 
